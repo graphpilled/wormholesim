@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wormhole</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #020208;
+            color: #fff;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* Math derivation panel - right side */
+        #math-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 380px;
+            background: rgba(2,2,8,0.95);
+            border-left: 1px solid rgba(255,255,255,0.08);
+            padding: 30px 25px;
+            transform: translateX(100%);
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        #math-panel.visible {
+            transform: translateX(0);
+        }
+        
+        #math-panel::-webkit-scrollbar {
+            width: 2px;
+        }
+        
+        #math-panel::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .derivation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 12px;
+        }
+        
+        .derivation-header h2 {
+            font-family: 'Courier New', monospace;
+            font-weight: 400;
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(119,170,255,0.7);
+        }
+        
+        .derivation-header .coords {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+        }
+        
+        .derivation-steps {
+            display: grid;
+            gap: 16px;
+        }
+        
+        .step {
+            display: grid;
+            grid-template-columns: 32px 1fr;
+            gap: 20px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: stepReveal 0.4s ease forwards;
+        }
+        
+        .step:nth-child(1) { animation-delay: 0.05s; }
+        .step:nth-child(2) { animation-delay: 0.1s; }
+        .step:nth-child(3) { animation-delay: 0.15s; }
+        .step:nth-child(4) { animation-delay: 0.2s; }
+        .step:nth-child(5) { animation-delay: 0.25s; }
+        .step:nth-child(6) { animation-delay: 0.3s; }
+        .step:nth-child(7) { animation-delay: 0.35s; }
+        .step:nth-child(8) { animation-delay: 0.4s; }
+        .step:nth-child(9) { animation-delay: 0.45s; }
+        .step:nth-child(10) { animation-delay: 0.5s; }
+        .step:nth-child(11) { animation-delay: 0.55s; }
+        .step:nth-child(12) { animation-delay: 0.6s; }
+        .step:nth-child(13) { animation-delay: 0.65s; }
+        .step:nth-child(14) { animation-delay: 0.7s; }
+        .step:nth-child(15) { animation-delay: 0.75s; }
+        
+        @keyframes stepReveal {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .step-num {
+            font-size: 10px;
+            color: rgba(255,255,255,0.25);
+            padding-top: 4px;
+            text-align: right;
+        }
+        
+        .step-content {
+            border-left: 1px solid rgba(255,255,255,0.08);
+            padding-left: 20px;
+        }
+        
+        .step-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: rgba(255,255,255,0.35);
+            margin-bottom: 8px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .step-math {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: rgba(255,255,255,0.9);
+            line-height: 1.8;
+        }
+        
+        .step-math .katex {
+            font-size: 0.95em;
+        }
+        
+        .step.result .step-content {
+            border-left-color: rgba(120,180,255,0.4);
+        }
+        
+        .step.result .step-math {
+            color: rgba(120,180,255,1);
+            font-size: 14px;
+        }
+        
+        .step-num {
+            font-family: 'Courier New', monospace;
+        }
+        
+        /* Bend indicator */
+        #bend-indicator {
+            position: fixed;
+            pointer-events: none;
+            width: 100px;
+            height: 100px;
+            border: 1px solid rgba(120,170,255,0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 50;
+        }
+        
+        #bend-indicator.active {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        #bend-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background: rgba(120,180,255,0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(120,180,255,0.5);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div id="bend-indicator"></div>
+    
+    <div id="math-panel">
+        <div class="derivation-header">
+            <h2>Tensor Derivation</h2>
+            <span class="coords" id="click-coords"></span>
+        </div>
+        <div class="derivation-steps" id="derivation-steps"></div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- OCaml Tensor Engine (compiled via js_of_ocaml) -->
+    <script src="tensor_engine.js"></script>
+    
+    <script>
+    // ============================================================================
+    // WORMHOLE VISUALIZATION - USING OCAML TENSOR ENGINE
+    // ============================================================================
+    
+    const canvas = document.getElementById('canvas');
+    const mathPanel = document.getElementById('math-panel');
+    const bendIndicator = document.getElementById('bend-indicator');
+    
+    // Three.js setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020208);
+    
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(12, 6, 12);
+    camera.lookAt(0, 0, 0);
+    
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    // Lighting - matching original
+    const ambientLight = new THREE.AmbientLight(0x404060, 0.4);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(5, 10, 5);
+    scene.add(directionalLight);
+    
+    // Throat glow
+    const throatLight = new THREE.PointLight(0x4488ff, 1.5, 8);
+    throatLight.position.set(0, 0, 0);
+    scene.add(throatLight);
+    
+    // ============================================================================
+    // WORMHOLE PHYSICS - NOW USING TENSOR ENGINE
+    // ============================================================================
+    
+    let wormholeMesh = null;
+    let gridHelpers = [];
+    let lightRays = [];
+    
+    const params = {
+        b0: 1.0,
+        rMax: 6
+    };
+    
+    // Shape function - uses TensorEngine
+    function shapeFunction(r) {
+        return TensorEngine.getShapeAt(params.b0, r);
+    }
+    
+    function shapeDerivative(r) {
+        const dr = 0.001;
+        return (shapeFunction(r + dr) - shapeFunction(r - dr)) / (2 * dr);
+    }
+    
+    // Embedding integral z(r) - uses TensorEngine
+    function embeddingZ(r, side = 1) {
+        return TensorEngine.embeddingZ(params.b0, r) * side;
+    }
+    
+    // Time dilation factor
+    function timeDilationFactor(r) {
+        const b = shapeFunction(r);
+        if (r <= b) return Infinity;
+        return Math.sqrt(r / (r - b));
+    }
+    
+    // Christoffel symbols - uses TensorEngine
+    function christoffel(r, theta) {
+        const G = TensorEngine.computeChristoffel(r, theta, params.b0);
+        return {
+            r_rr: G.rRr,
+            r_thth: G.rThth,
+            r_phph: G.rPhph,
+            th_rth: G.thRth,
+            th_phph: G.thPhph,
+            ph_rph: G.phRph,
+            ph_thph: G.phThph
+        };
+    }
+    
+    // ============================================================================
+    // WORMHOLE GEOMETRY - HORIZONTAL ORIENTATION
+    // ============================================================================
+    
+    function createWormholeGeometry() {
+        const b0 = params.b0;
+        const rMin = b0;
+        const rMax = b0 * params.rMax;
+        const rSegments = 60;
+        const thetaSegments = 48;
+        
+        const geometry = new THREE.BufferGeometry();
+        const vertices = [];
+        const normals = [];
+        const colors = [];
+        const indices = [];
+        
+        // Two sides of the wormhole
+        for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i <= rSegments; i++) {
+                const t = i / rSegments;
+                const r = rMin + t * (rMax - rMin);
+                const z = embeddingZ(r, side);
+                
+                for (let j = 0; j <= thetaSegments; j++) {
+                    const theta = (j / thetaSegments) * Math.PI * 2;
+                    
+                    // HORIZONTAL: z becomes x, original x/z become y/z
+                    const x = z; // Embedding height becomes horizontal position
+                    const y = r * Math.cos(theta);
+                    const zPos = r * Math.sin(theta);
+                    
+                    vertices.push(x, y, zPos);
+                    
+                    // Normal calculation
+                    const dr = 0.01;
+                    const z1 = embeddingZ(r + dr, side);
+                    const dz_dr = (z1 - z) / dr;
+                    
+                    // Rotated normals for horizontal orientation
+                    const nx = side;
+                    const ny = -dz_dr * Math.cos(theta);
+                    const nz = -dz_dr * Math.sin(theta);
+                    const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+                    normals.push(nx/len, ny/len, nz/len);
+                    
+                    // Colors - blue gradient from throat
+                    const dist = (r - b0) / (rMax - b0);
+                    const b = shapeFunction(r);
+                    const curvatureIntensity = Math.min(Math.abs(b / (r * r)) * 5, 1);
+                    
+                    const cr = 0.15 + 0.25 * dist + 0.2 * curvatureIntensity;
+                    const cg = 0.25 + 0.35 * dist;
+                    const cb = 0.5 + 0.3 * (1 - dist);
+                    
+                    colors.push(cr, cg, cb);
+                }
+            }
+        }
+        
+        // Build indices
+        const vertsPerRing = thetaSegments + 1;
+        const vertsPerSide = (rSegments + 1) * vertsPerRing;
+        
+        for (let side = 0; side < 2; side++) {
+            const offset = side * vertsPerSide;
+            for (let i = 0; i < rSegments; i++) {
+                for (let j = 0; j < thetaSegments; j++) {
+                    const a = offset + i * vertsPerRing + j;
+                    const b = offset + i * vertsPerRing + j + 1;
+                    const c = offset + (i + 1) * vertsPerRing + j;
+                    const d = offset + (i + 1) * vertsPerRing + j + 1;
+                    indices.push(a, c, b, b, c, d);
+                }
+            }
+        }
+        
+        // Connect at throat
+        for (let j = 0; j < thetaSegments; j++) {
+            indices.push(j, j + 1, vertsPerSide + j);
+            indices.push(j + 1, vertsPerSide + j + 1, vertsPerSide + j);
+        }
+        
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setIndex(indices);
+        
+        return geometry;
+    }
+    
+    function updateWormhole() {
+        if (wormholeMesh) {
+            scene.remove(wormholeMesh);
+            wormholeMesh.geometry.dispose();
+            wormholeMesh.material.dispose();
+        }
+        
+        const geometry = createWormholeGeometry();
+        const material = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide,
+            shininess: 20,
+            transparent: true,
+            opacity: 0.85
+        });
+        
+        wormholeMesh = new THREE.Mesh(geometry, material);
+        scene.add(wormholeMesh);
+        
+        // Update grid helpers
+        updateGrids();
+    }
+    
+    function updateGrids() {
+        gridHelpers.forEach(g => scene.remove(g));
+        gridHelpers = [];
+        
+        const zExtent = embeddingZ(params.b0 * params.rMax, 1);
+        
+        // Left universe grid (negative x)
+        const gridLeft = new THREE.GridHelper(15, 15, 0x334455, 0x1a2233);
+        gridLeft.rotation.z = Math.PI / 2;
+        gridLeft.position.x = -zExtent - 0.1;
+        scene.add(gridLeft);
+        gridHelpers.push(gridLeft);
+        
+        // Right universe grid (positive x)
+        const gridRight = new THREE.GridHelper(15, 15, 0x553344, 0x331a22);
+        gridRight.rotation.z = Math.PI / 2;
+        gridRight.position.x = zExtent + 0.1;
+        scene.add(gridRight);
+        gridHelpers.push(gridRight);
+    }
+    
+    // ============================================================================
+    // GEODESIC PHYSICS - USING TENSOR ENGINE CHRISTOFFELS
+    // ============================================================================
+    
+    // Geodesic equation RHS: d²x^μ/dτ² + Γ^μ_αβ u^α u^β = 0
+    function geodesicRHS(state) {
+        const [t, r, theta, phi, ut, ur, uth, uph] = state;
+        
+        const rSafe = Math.max(r, params.b0 * 1.001);
+        const G = christoffel(rSafe, theta);
+        
+        // dx^μ/dτ = u^μ
+        const dt = ut;
+        const dr = ur;
+        const dth = uth;
+        const dph = uph;
+        
+        // du^μ/dτ = -Γ^μ_αβ u^α u^β
+        const dut = 0; // Φ = 0 means Γ^t_αβ = 0
+        
+        const dur = -G.r_rr * ur * ur 
+                    - G.r_thth * uth * uth 
+                    - G.r_phph * uph * uph;
+        
+        const duth = -2 * G.th_rth * ur * uth 
+                     - G.th_phph * uph * uph;
+        
+        const duph = -2 * G.ph_rph * ur * uph 
+                     - 2 * G.ph_thph * uth * uph;
+        
+        return [dt, dr, dth, dph, dut, dur, duth, duph];
+    }
+    
+    // RK4 integration step
+    function rk4Step(state, dt) {
+        const k1 = geodesicRHS(state);
+        
+        const state2 = state.map((v, i) => v + 0.5 * dt * k1[i]);
+        const k2 = geodesicRHS(state2);
+        
+        const state3 = state.map((v, i) => v + 0.5 * dt * k2[i]);
+        const k3 = geodesicRHS(state3);
+        
+        const state4 = state.map((v, i) => v + dt * k3[i]);
+        const k4 = geodesicRHS(state4);
+        
+        return state.map((v, i) => 
+            v + (dt / 6) * (k1[i] + 2*k2[i] + 2*k3[i] + k4[i])
+        );
+    }
+    
+    // Normalize for null geodesic: g_μν k^μ k^ν = 0
+    function normalizeNull(state) {
+        let [t, r, theta, phi, kt, kr, kth, kph] = state;
+        
+        const b = shapeFunction(r);
+        const sinT = Math.sin(theta);
+        
+        const g_rr = r / (r - b);
+        const g_thth = r * r;
+        const g_phph = r * r * sinT * sinT;
+        
+        // 0 = -kt² + g_rr*kr² + g_θθ*kθ² + g_φφ*kφ²
+        const spatial = g_rr * kr * kr + g_thth * kth * kth + g_phph * kph * kph;
+        kt = Math.sqrt(Math.max(0, spatial));
+        
+        return [t, r, theta, phi, kt, kr, kth, kph];
+    }
+    
+    // ============================================================================
+    // LIGHT RAYS - TRUE NULL GEODESICS
+    // ============================================================================
+    
+    class LightRay {
+        constructor(startSide) {
+            this.side = startSide;
+            this.alive = true;
+            this.age = 0;
+            this.crossedThroat = false;
+            this.points = [];
+            
+            // Initial position
+            const r = params.b0 * 3 + Math.random() * params.b0 * 2;
+            const theta = Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+            const phi = Math.random() * Math.PI * 2;
+            
+            // Initial 4-velocity (null vector pointing inward)
+            const kr = -startSide * (0.5 + Math.random() * 0.3);
+            const kth = (Math.random() - 0.5) * 0.15;
+            const kph = (Math.random() - 0.5) * 0.2;
+            
+            // State: [t, r, θ, φ, k^t, k^r, k^θ, k^φ]
+            this.state = normalizeNull([0, r, theta, phi, 0, kr, kth, kph]);
+            
+            // Visual
+            this.geometry = new THREE.BufferGeometry();
+            this.material = new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.75
+            });
+            this.line = new THREE.Line(this.geometry, this.material);
+            scene.add(this.line);
+            
+            this.updateVisual();
+        }
+        
+        step(dt) {
+            if (!this.alive) return;
+            
+            this.age += dt;
+            const b0 = params.b0;
+            
+            // Multiple integration steps per frame for accuracy
+            for (let i = 0; i < 4; i++) {
+                this.state = rk4Step(this.state, dt * 0.5);
+                
+                let [t, r, theta, phi, kt, kr, kth, kph] = this.state;
+                
+                // Throat crossing
+                if (r < b0 * 1.01 && !this.crossedThroat) {
+                    this.side *= -1;
+                    this.crossedThroat = true;
+                    r = b0 * 1.01;
+                    kr = Math.abs(kr) * (-this.side);
+                } else if (r > b0 * 1.5) {
+                    this.crossedThroat = false;
+                }
+                
+                // Keep θ in valid range
+                if (theta < 0.01) { theta = 0.01; kth = Math.abs(kth); }
+                if (theta > Math.PI - 0.01) { theta = Math.PI - 0.01; kth = -Math.abs(kth); }
+                
+                // Wrap φ
+                phi = ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                
+                this.state = [t, r, theta, phi, kt, kr, kth, kph];
+                
+                if (r > b0 * params.rMax) {
+                    this.alive = false;
+                    break;
+                }
+            }
+            
+            this.updateVisual();
+            
+            // Fade over time
+            this.material.opacity = Math.max(0, 0.75 - this.age * 0.06);
+            
+            if (this.age > 12) this.alive = false;
+        }
+        
+        updateVisual() {
+            const [t, r, theta, phi] = this.state;
+            
+            // Convert to embedding coordinates (horizontal orientation)
+            const z = embeddingZ(r, this.side);
+            const x = z;
+            const y = r * Math.cos(phi);
+            const zPos = r * Math.sin(phi);
+            
+            this.points.push(new THREE.Vector3(x, y, zPos));
+            if (this.points.length > 200) this.points.shift();
+            
+            if (this.points.length > 1) {
+                this.geometry.setFromPoints(this.points);
+            }
+        }
+        
+        remove() {
+            scene.remove(this.line);
+            this.geometry.dispose();
+            this.material.dispose();
+        }
+    }
+    
+    function spawnLightRays() {
+        for (let i = 0; i < 2; i++) {
+            lightRays.push(new LightRay(-1));
+            lightRays.push(new LightRay(1));
+        }
+    }
+    
+    // ============================================================================
+    // TENSOR DERIVATIONS - USING TENSOR ENGINE DATA
+    // ============================================================================
+    
+    function renderLatex(latex, element) {
+        try {
+            katex.render(latex, element, { 
+                throwOnError: false, 
+                displayMode: true,
+                strict: false
+            });
+        } catch (e) {
+            element.textContent = latex;
+        }
+    }
+    
+    function computeDerivation(r, theta) {
+        const b = shapeFunction(r);
+        const bp = shapeDerivative(r);
+        const steps = [];
+        
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+        const rmb = r - b;
+        
+        // Get Christoffel symbols from TensorEngine
+        const G = christoffel(r, theta);
+        
+        // Get derivation data from TensorEngine
+        const D = TensorEngine.getDerivationSteps(r, theta, params.b0);
+        
+        // Step 1: Point
+        steps.push({
+            type: 'definition',
+            label: 'Spacetime Point',
+            latex: `r = ${r.toFixed(4)}, \\quad \\theta = ${(theta * 180 / Math.PI).toFixed(1)}°, \\quad b(r) = ${b.toFixed(4)}, \\quad b'(r) = ${bp.toFixed(4)}`
+        });
+        
+        // Step 2: Morris-Thorne metric
+        steps.push({
+            type: 'metric',
+            label: 'Morris-Thorne Metric',
+            latex: `ds^2 = -e^{2\\Phi(r)}dt^2 + \\frac{dr^2}{1 - \\frac{b(r)}{r}} + r^2 d\\Omega^2`
+        });
+        
+        // Step 3: Zero redshift
+        steps.push({
+            type: 'simplification',
+            label: 'Zero Tidal Force (Φ = 0)',
+            latex: `ds^2 = -dt^2 + \\frac{r}{r - b(r)}dr^2 + r^2(d\\theta^2 + \\sin^2\\theta\\, d\\phi^2)`
+        });
+        
+        // Step 4: Metric components
+        const g_rr = r / rmb;
+        const g_thth = r * r;
+        const g_phph = r * r * sinT * sinT;
+        
+        steps.push({
+            type: 'components',
+            label: 'Metric Components',
+            latex: `g_{tt} = -1, \\quad g_{rr} = \\frac{${r.toFixed(3)}}{${r.toFixed(3)} - ${b.toFixed(3)}} = ${g_rr.toFixed(4)}`
+        });
+        
+        steps.push({
+            type: 'components',
+            label: 'Angular Components',
+            latex: `g_{\\theta\\theta} = r^2 = ${g_thth.toFixed(4)}, \\quad g_{\\phi\\phi} = r^2\\sin^2\\theta = ${g_phph.toFixed(4)}`
+        });
+        
+        // Step 5: Inverse
+        steps.push({
+            type: 'inverse',
+            label: 'Inverse Metric',
+            latex: `g^{tt} = -1, \\quad g^{rr} = \\frac{r - b}{r} = ${(1/g_rr).toFixed(4)}, \\quad g^{\\theta\\theta} = ${(1/g_thth).toFixed(6)}`
+        });
+        
+        // Step 6: Christoffel definition
+        steps.push({
+            type: 'formula',
+            label: 'Christoffel Symbol',
+            latex: `\\Gamma^\\sigma_{\\mu\\nu} = \\frac{1}{2}g^{\\sigma\\rho}\\left(\\partial_\\mu g_{\\nu\\rho} + \\partial_\\nu g_{\\mu\\rho} - \\partial_\\rho g_{\\mu\\nu}\\right)`
+        });
+        
+        // Step 7: Derivative of g_rr
+        const dg_rr = (r * bp - b) / (rmb * rmb);
+        steps.push({
+            type: 'differentiation',
+            label: 'Metric Derivative ∂ᵣgᵣᵣ',
+            latex: `\\partial_r g_{rr} = \\partial_r\\left(\\frac{r}{r-b}\\right) = \\frac{(r-b) - r(1 - b')}{(r-b)^2} = \\frac{rb' - b}{(r-b)^2} = ${dg_rr.toFixed(4)}`
+        });
+        
+        // Step 8: Γ^r_rr - using TensorEngine computed value
+        steps.push({
+            type: 'computation',
+            label: 'Christoffel Γʳᵣᵣ (computed by OCaml)',
+            latex: `\\Gamma^r_{rr} = \\frac{1}{2}g^{rr}\\partial_r g_{rr} = \\frac{b - rb'}{2r(r-b)} = ${G.r_rr.toFixed(6)}`
+        });
+        
+        // Step 9: Γ^r_θθ
+        steps.push({
+            type: 'computation',
+            label: 'Christoffel Γʳθθ',
+            latex: `\\Gamma^r_{\\theta\\theta} = -\\frac{1}{2}g^{rr}\\partial_r g_{\\theta\\theta} = -(r - b) = ${G.r_thth.toFixed(4)}`
+        });
+        
+        // Step 10: Γ^r_φφ
+        steps.push({
+            type: 'computation',
+            label: 'Christoffel Γʳφφ',
+            latex: `\\Gamma^r_{\\phi\\phi} = -(r-b)\\sin^2\\theta = ${G.r_phph.toFixed(4)}`
+        });
+        
+        // Step 11: Angular Christoffels
+        steps.push({
+            type: 'computation',
+            label: 'Angular Christoffels',
+            latex: `\\Gamma^\\theta_{r\\theta} = \\frac{1}{r} = ${G.th_rth.toFixed(4)}, \\quad \\Gamma^\\phi_{r\\phi} = \\frac{1}{r} = ${G.ph_rph.toFixed(4)}`
+        });
+        
+        // Step 12: Geodesic equation
+        steps.push({
+            type: 'equation',
+            label: 'Null Geodesic Equation (light paths)',
+            latex: `\\frac{d^2 x^\\mu}{d\\lambda^2} + \\Gamma^\\mu_{\\alpha\\beta}\\frac{dx^\\alpha}{d\\lambda}\\frac{dx^\\beta}{d\\lambda} = 0`
+        });
+        
+        // Step 13: Radial acceleration for light
+        steps.push({
+            type: 'equation',
+            label: 'Radial Component',
+            latex: `\\frac{d^2 r}{d\\lambda^2} = -\\Gamma^r_{rr}(k^r)^2 - \\Gamma^r_{\\theta\\theta}(k^\\theta)^2 - \\Gamma^r_{\\phi\\phi}(k^\\phi)^2`
+        });
+        
+        // Step 14: Gaussian curvature - from TensorEngine
+        const K = D.gaussianK;
+        steps.push({
+            type: 'result',
+            label: 'Gaussian Curvature',
+            latex: `K = -\\frac{b \\cdot b'}{2r^3} = -\\frac{${b.toFixed(4)} \\cdot ${bp.toFixed(4)}}{2 \\cdot ${(r*r*r).toFixed(2)}} = ${K.toFixed(6)}`
+        });
+        
+        // Step 15: Ricci scalar - from TensorEngine
+        const R = D.ricciR;
+        steps.push({
+            type: 'result',
+            label: 'Ricci Scalar',
+            latex: `R = \\frac{2b'}{r^2} = \\frac{2 \\cdot ${bp.toFixed(4)}}{${(r*r).toFixed(3)}} = ${R.toFixed(6)}`
+        });
+        
+        // Step 16: Time dilation - from TensorEngine
+        const dilation = D.timeDilation;
+        steps.push({
+            type: 'result',
+            label: 'Time Dilation',
+            latex: `\\frac{d\\tau}{dt} = \\sqrt{1 - \\frac{b}{r}} = \\sqrt{1 - \\frac{${b.toFixed(3)}}{${r.toFixed(3)}}} = ${(1/dilation).toFixed(4)}`
+        });
+        
+        return steps;
+    }
+    
+    function displayDerivation(r, theta) {
+        const steps = computeDerivation(r, theta);
+        
+        document.getElementById('click-coords').textContent = 
+            `r = ${r.toFixed(3)}, θ = ${(theta * 180 / Math.PI).toFixed(1)}°`;
+        
+        const container = document.getElementById('derivation-steps');
+        container.innerHTML = '';
+        
+        steps.forEach((step, i) => {
+            const stepEl = document.createElement('div');
+            stepEl.className = `step ${step.type}`;
+            
+            stepEl.innerHTML = `
+                <div class="step-num">${String(i + 1).padStart(2, '0')}</div>
+                <div class="step-content">
+                    <div class="step-label">${step.label}</div>
+                    <div class="step-math" id="step-math-${i}"></div>
+                </div>
+            `;
+            
+            container.appendChild(stepEl);
+        });
+        
+        setTimeout(() => {
+            steps.forEach((step, i) => {
+                const el = document.getElementById(`step-math-${i}`);
+                if (el) renderLatex(step.latex, el);
+            });
+        }, 50);
+        
+        mathPanel.classList.add('visible');
+    }
+    
+    // ============================================================================
+    // INTERACTION
+    // ============================================================================
+    
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    
+    function onCanvasClick(event) {
+        if (isDragging) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera(mouse, camera);
+        
+        if (wormholeMesh) {
+            const intersects = raycaster.intersectObject(wormholeMesh);
+            
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                
+                // Extract r and theta from hit point (horizontal orientation)
+                const r = Math.sqrt(point.y * point.y + point.z * point.z);
+                const theta = Math.atan2(point.z, point.y);
+                
+                // Add deformation via TensorEngine
+                const strength = (Math.random() - 0.3) * 0.4;
+                const radius = 1.0 + Math.random() * 0.5;
+                TensorEngine.addDeformation(r, strength, radius);
+                
+                // Rebuild wormhole
+                updateWormhole();
+                
+                // Show derivation
+                displayDerivation(Math.max(params.b0 * 1.01, r), theta);
+                
+                // Visual feedback
+                bendIndicator.style.left = event.clientX + 'px';
+                bendIndicator.style.top = event.clientY + 'px';
+                bendIndicator.classList.add('active');
+                setTimeout(() => bendIndicator.classList.remove('active'), 300);
+            }
+        }
+    }
+    
+    canvas.addEventListener('click', onCanvasClick);
+    
+    // ============================================================================
+    // CAMERA CONTROLS
+    // ============================================================================
+    
+    let isDragging = false;
+    let dragMoved = false;
+    let previousMouse = { x: 0, y: 0 };
+    let cameraAngle = { theta: Math.PI / 4, phi: Math.PI / 5 };
+    let cameraDistance = 14;
+    
+    function updateCamera() {
+        camera.position.x = cameraDistance * Math.sin(cameraAngle.theta) * Math.cos(cameraAngle.phi);
+        camera.position.y = cameraDistance * Math.sin(cameraAngle.phi);
+        camera.position.z = cameraDistance * Math.cos(cameraAngle.theta) * Math.cos(cameraAngle.phi);
+        camera.lookAt(0, 0, 0);
+    }
+    
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 2 || e.shiftKey) {
+            isDragging = true;
+            dragMoved = false;
+            previousMouse = { x: e.clientX, y: e.clientY };
+            e.preventDefault();
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            dragMoved = true;
+            const dx = e.clientX - previousMouse.x;
+            const dy = e.clientY - previousMouse.y;
+            
+            cameraAngle.theta += dx * 0.005;
+            cameraAngle.phi = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, cameraAngle.phi + dy * 0.005));
+            
+            updateCamera();
+            previousMouse = { x: e.clientX, y: e.clientY };
+        }
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+    
+    canvas.addEventListener('mouseleave', () => {
+        isDragging = false;
+    });
+    
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        cameraDistance = Math.max(6, Math.min(30, cameraDistance + e.deltaY * 0.02));
+        updateCamera();
+    });
+    
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    // ============================================================================
+    // ANIMATION
+    // ============================================================================
+    
+    let lastSpawn = 0;
+    
+    function animate(time) {
+        requestAnimationFrame(animate);
+        
+        const dt = 0.016;
+        
+        // Spawn light rays
+        if (time - lastSpawn > 1500) {
+            spawnLightRays();
+            lastSpawn = time;
+        }
+        
+        // Update light rays
+        for (let i = lightRays.length - 1; i >= 0; i--) {
+            lightRays[i].step(dt);
+            if (!lightRays[i].alive) {
+                lightRays[i].remove();
+                lightRays.splice(i, 1);
+            }
+        }
+        
+        // Gentle camera drift when not dragging
+        if (!isDragging) {
+            cameraAngle.theta += 0.0003;
+            updateCamera();
+        }
+        
+        renderer.render(scene, camera);
+    }
+    
+    // ============================================================================
+    // INIT
+    // ============================================================================
+    
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
+    updateWormhole();
+    updateCamera();
+    spawnLightRays();
+    animate(0);
+    
+    console.log('🌀 Wormhole initialized — click to bend spacetime');
+    console.log('📐 Using OCaml TensorEngine (js_of_ocaml)');
+    </script>
+</body>
+</html>

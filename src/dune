@@ -1,0 +1,6 @@
+(executable
+ (name js_bridge)
+ (modes js)
+ (libraries js_of_ocaml)
+ (preprocess (pps js_of_ocaml-ppx))
+ (flags (:standard -w -26-27-33-39)))

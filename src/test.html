@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+<script src="../wormhole-viz/tensor_engine.js"></script>
+<script>
+  console.log('TensorEngine:', TensorEngine);
+  const G = TensorEngine.computeChristoffel(2.0, Math.PI/2, 1.0);
+  console.log('Christoffel at r=2:', G);
+</script>
+</body>
+</html>
